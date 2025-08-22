@@ -1,57 +1,57 @@
-// File: app/app.py
-'use client';
+# File: app.py
 
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import yt_dlp
 
-// A simple spinner component
-const Spinner = () => (
-  <svg className="animate-spin h-5 w-5 text-cyan" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-  </svg>
-);
+# Initialize the Flask app
+app = Flask(__name__)
+# Allow requests from your frontend
+CORS(app)
 
-// Main Page Component
-export default function Home() {
-  const [url, setUrl] = useState('');
-  const [format, setFormat] = useState<'mp3' | 'mp4'>('mp3');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [videoInfo, setVideoInfo] = useState<any | null>(null);
+# Create an API endpoint at /api/getVideoInfo
+@app.route('/api/getVideoInfo', methods=['POST'])
+def get_video_info():
+    """
+    Takes a YouTube URL, fetches video info using yt-dlp, and returns it.
+    """
+    url = request.json.get('url')
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!url.trim()) {
-      setError('Please enter a valid YouTube URL.');
-      return;
-    }
-    
-    setIsLoading(true);
-    setError(null);
-    setVideoInfo(null);
+    if not url:
+        return jsonify({"error": "URL is required"}), 400
 
-    try {
-      const response = await fetch('https://co.wuk.sh/api/json', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          url: url,
-          isNoTT: true, // No Text-to-Speech watermark
-        }),
-      });
+    try:
+        # yt-dlp options to get the best quality mp4
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'format': 'best[ext=mp4]/best', 
+        }
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch video information. Please check the URL.');
-      }
+        # Extract info without downloading
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info_dict = ydl.extract_info(url, download=False)
 
-      const data = await response.json();
-      
-      if (data.status === 'error') {
-        throw new Error(data.text || 'An unknown error occurred.');
+            # Get the best audio-only format for MP3
+            audio_formats = [f for f in info_dict.get('formats', []) if f.get('acodec') != 'none' and f.get('vcodec') == 'none']
+            best_audio = sorted(audio_formats, key=lambda x: x.get('abr', 0), reverse=True)[0] if audio_formats else None
+
+            video_info = {
+                "title": info_dict.get('title', 'No Title'),
+                "thumbnail": info_dict.get('thumbnail', ''),
+                "download_url_mp4": info_dict.get('url', ''),
+                "download_url_mp3": best_audio.get('url') if best_audio else info_dict.get('url', ''),
+            }
+
+            return jsonify(video_info)
+
+    except Exception as e:
+        return jsonify({"error": "Could not process the video. Please check the URL."}), 500
+
+# To run this, use the command: flask --app app run --port=5001
+if __name__ == '__main__':
+    app.run(debug=True, port=5001)
+red.');
       }
 
       setVideoInfo(data);
